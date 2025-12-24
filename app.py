@@ -9,6 +9,27 @@ st.set_page_config(
     page_icon="🎓",
     layout="wide"
 )
+st.markdown(
+    """
+    <style>
+    .header {
+        background-color: #4B8BBE;
+        padding: 20px;
+        color: white;
+        text-align: center;
+        border-radius: 10px;
+    }
+    .footer {
+        background-color: #306998;
+        padding: 15px;
+        color: white;
+        text-align: center;
+        border-radius: 10px;
+        font-size: 14px;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
 
 st.title("🎓 Intelligent Student Identity Trust System")
 st.markdown(
