@@ -20,7 +20,7 @@ st.markdown(
 @st.cache_resource
 def load_models():
     model = joblib.load("/content/drive/MyDrive/PROJRCTS ( ML)/ML code/isolation_forest.pkl")
-    scaler = joblib.load("/content/drive/MyDrive/PROJRCTS ( ML)/ML code/scaler.pkl")
+    scaler = joblib.load("/content/drive/MyDrive/PROJRCTS ( ML)/ML code/scaler(2).pkl")
     return model, scaler
 
 model, scaler = load_models()
