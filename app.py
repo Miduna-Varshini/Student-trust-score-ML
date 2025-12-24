@@ -19,12 +19,16 @@ st.markdown(
 # ================= LOAD MODEL =================
 @st.cache_resource
 def load_models():
+    # Since files are in the same folder as app.py
     model = joblib.load("isolation_forest.pkl")
     scaler = joblib.load("scaler.pkl")
     return model, scaler
 
 model, scaler = load_models()
 
+
+# ================= LOAD DATA =================
+df = pd.read_excel("student_activity.xlsx")
 # ================= SIDEBAR INPUT =================
 st.sidebar.header("📥 Student Activity Input")
 
