@@ -77,13 +77,15 @@ if st.session_state.start_time:
     click_speed = random.randint(20, 80)
     device_change = random.choice([0, 1])
     login_frequency = random.randint(1, 5)
+    typing_speed = random.randint(30, 90)
 
     features = [[
         login_hour,
         session_duration,
         click_speed,
         device_change,
-        login_frequency
+        login_frequency,
+        typing_speed
     ]]
 
     scaled_features = scaler.transform(features)
