@@ -1,16 +1,17 @@
 import streamlit as st
-import pandas as pd
 import joblib
-import os
+import time
+import random
+import pandas as pd
 from datetime import datetime
 
-# ================= PAGE CONFIG =================
+# ---------------- CONFIG ----------------
 st.set_page_config(
-    page_title="Intelligent Student Identity Trust System",
+    page_title="Student Trust Score System",
     layout="wide"
 )
 
-# ================= LOAD MODEL =================
+# ---------------- LOAD MODEL ----------------
 @st.cache_resource
 def load_models():
     model = joblib.load("isolation_forest.pkl")
@@ -19,117 +20,113 @@ def load_models():
 
 model, scaler = load_models()
 
-# ================= UI HEADER =================
-st.markdown(
-    """
-    <div style="background:linear-gradient(to right,#4facfe,#00f2fe);
-                padding:20px;border-radius:10px">
-        <h1 style="color:white;text-align:center;">🎓 Intelligent Student Identity Trust System</h1>
-        <p style="color:white;text-align:center;">Real-time student behavior & room entry monitoring</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# ---------------- SESSION STORAGE ----------------
+if "start_time" not in st.session_state:
+    st.session_state.start_time = None
+
+if "report" not in st.session_state:
+    st.session_state.report = []
+
+# ---------------- UI HEADER ----------------
+st.markdown("""
+<style>
+.header {
+    background-color:#0f172a;
+    padding:20px;
+    border-radius:10px;
+    color:white;
+    text-align:center;
+}
+.footer {
+    background-color:#0f172a;
+    padding:10px;
+    color:white;
+    text-align:center;
+    border-radius:10px;
+}
+</style>
+<div class="header">
+<h1>🎓 Student Trust Score Monitoring System</h1>
+<p>ML-based Behavioral Analysis</p>
+</div>
+""", unsafe_allow_html=True)
 
 st.write("")
 
-# ================= SIDEBAR INPUT =================
-st.sidebar.header("🧑‍🎓 Student Activity Input")
+# ---------------- LOGIN ----------------
+st.subheader("🔐 Student Login")
 
-student_name = st.sidebar.text_input("Student Name")
+student_id = st.text_input("Enter Student ID")
+student_name = st.text_input("Enter Student Name")
 
-login_hour = st.sidebar.slider("Login Hour (0-23)", 0, 23, 10)
-day_type = st.sidebar.selectbox("Day Type", ["Weekday", "Weekend"])
-session_duration = st.sidebar.slider("Session Duration (minutes)", 1, 300, 30)
-actions_per_minute = st.sidebar.slider("Actions per Minute", 1, 100, 20)
-time_between_actions = st.sidebar.slider("Time Between Actions (seconds)", 0.1, 10.0, 3.0)
-files_accessed = st.sidebar.slider("Files Accessed", 0, 100, 10)
-device_change = st.sidebar.selectbox("Device Change Detected?", ["No", "Yes"])
+login_btn = st.button("Login")
 
-# ================= PREPARE INPUT =================
-day_encoded = 0 if day_type == "Weekday" else 1
-device_encoded = 1 if device_change == "Yes" else 0
+# ---------------- ON LOGIN ----------------
+if login_btn and student_id and student_name:
+    st.session_state.start_time = time.time()
+    st.success(f"Login detected for {student_name}")
 
-input_data = [[
-    login_hour,
-    day_encoded,
-    session_duration,
-    actions_per_minute,
-    time_between_actions,
-    files_accessed,
-    device_encoded
-]]
+# ---------------- SESSION ACTIVE ----------------
+if st.session_state.start_time:
+    st.subheader("📡 Monitoring Student Activity...")
 
-scaled_input = scaler.transform(input_data)
+    session_duration = round(time.time() - st.session_state.start_time, 2)
 
-# ================= PREDICTION =================
-if st.sidebar.button("🔍 Predict Trust Score"):
+    # AUTO-GENERATED FEATURES
+    login_hour = datetime.now().hour
+    click_speed = random.randint(20, 80)
+    device_change = random.choice([0, 1])
+    login_frequency = random.randint(1, 5)
 
-    if student_name.strip() == "":
-        st.error("⚠️ Please enter Student Name")
-    else:
-        prediction = model.predict(scaled_input)[0]
-        score = int(100 - abs(model.decision_function(scaled_input)[0] * 50))
+    features = [[
+        login_hour,
+        session_duration,
+        click_speed,
+        device_change,
+        login_frequency
+    ]]
 
-        if prediction == -1:
-            status = "Anomalous"
-            risk = "High"
-        else:
-            status = "Normal"
-            risk = "Low"
+    scaled_features = scaler.transform(features)
+    prediction = model.predict(scaled_features)[0]
 
-        # ================= DISPLAY RESULT =================
-        col1, col2, col3 = st.columns(3)
+    trust_score = max(0, min(100, 100 - abs(prediction) * random.randint(10, 20)))
 
-        col1.metric("Trust Score", f"{score}/100")
-        col2.metric("Behavior Status", status)
-        col3.metric("Risk Level", risk)
+    status = "✅ Trusted" if trust_score > 60 else "⚠ Suspicious"
 
-        # ================= SAVE ENTRY TO CSV =================
-        log_file = "entry_log.csv"
+    col1, col2, col3 = st.columns(3)
 
-        log_data = {
-            "Student Name": student_name,
-            "Date": datetime.now().strftime("%Y-%m-%d"),
-            "Entry Time": datetime.now().strftime("%H:%M:%S"),
-            "Trust Score": score,
-            "Behavior Status": status,
-            "Risk Level": risk,
-            "Device Changed": device_change
+    col1.metric("Session Duration (sec)", session_duration)
+    col2.metric("Click Speed", click_speed)
+    col3.metric("Trust Score", trust_score)
+
+    st.info(f"Status: {status}")
+
+    # ---------------- SAVE TO REPORT ----------------
+    if st.button("End Session & Save"):
+        entry = {
+            "Student ID": student_id,
+            "Name": student_name,
+            "Login Time": datetime.now().strftime("%H:%M:%S"),
+            "Session Duration": session_duration,
+            "Trust Score": trust_score,
+            "Status": status
         }
+        st.session_state.report.append(entry)
+        st.session_state.start_time = None
+        st.success("Session saved successfully!")
 
-        if os.path.exists(log_file):
-            df = pd.read_csv(log_file)
-            df = pd.concat([df, pd.DataFrame([log_data])], ignore_index=True)
-        else:
-            df = pd.DataFrame([log_data])
+# ---------------- REPORT ----------------
+st.subheader("📊 Student Entry Report")
 
-        df.to_csv(log_file, index=False)
-
-        st.success("✅ Student entry logged successfully")
-
-# ================= REPORT SECTION =================
-st.markdown("---")
-st.subheader("📋 Room Entry Report")
-
-if os.path.exists("entry_log.csv"):
-    report_df = pd.read_csv("entry_log.csv")
-
-    st.dataframe(report_df, use_container_width=True)
-
-    # SUMMARY
-    st.markdown("### 📊 Summary")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Entries", len(report_df))
-    c2.metric("Normal", len(report_df[report_df["Behavior Status"] == "Normal"]))
-    c3.metric("Anomalous", len(report_df[report_df["Behavior Status"] == "Anomalous"]))
-
-    # DOWNLOAD
-    st.download_button(
-        label="⬇️ Download Report (CSV)",
-        data=report_df.to_csv(index=False),
-        file_name="student_entry_report.csv",
-        mime="text/csv"
-    )
+if st.session_state.report:
+    df = pd.DataFrame(st.session_state.report)
+    st.dataframe(df, use_container_width=True)
 else:
-    st.info("No entries recorded yet.")
+    st.warning("No student entries yet")
+
+# ---------------- FOOTER ----------------
+st.markdown("""
+<div class="footer">
+<p>© 2025 Student Trust ML System | Internship Project</p>
+</div>
+""", unsafe_allow_html=True)
