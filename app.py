@@ -12,13 +12,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .header {
         background-color: #15e6df;
-        padding: 20px;
-        color: white;
-        text-align: center;
-        border-radius: 10px;
-    }
     .footer {
         background-color: #306998;
         padding: 15px;
