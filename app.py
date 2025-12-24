@@ -20,7 +20,7 @@ st.markdown(
 @st.cache_resource
 def load_models():
     model = joblib.load("isolation_forest.pkl")
-    scaler = joblib.load("scaler(2).pkl")
+    scaler = joblib.load("scaler.pkl")
     return model, scaler
 
 model, scaler = load_models()
