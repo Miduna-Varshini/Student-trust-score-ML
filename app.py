@@ -1,108 +1,135 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
 import joblib
+import os
+from datetime import datetime
 
 # ================= PAGE CONFIG =================
 st.set_page_config(
-    page_title="Student Trust Scoring System",
-    page_icon="🎓",
+    page_title="Intelligent Student Identity Trust System",
     layout="wide"
-)
-
-st.title("🎓 Intelligent Student Identity Trust System")
-st.markdown(
-    "This application uses a **Machine Learning model (.pkl)** to evaluate "
-    "student behavior and generate a **trust score** in real time."
 )
 
 # ================= LOAD MODEL =================
 @st.cache_resource
 def load_models():
-    # Since files are in the same folder as app.py
     model = joblib.load("isolation_forest.pkl")
     scaler = joblib.load("scaler.pkl")
     return model, scaler
 
 model, scaler = load_models()
 
+# ================= UI HEADER =================
+st.markdown(
+    """
+    <div style="background:linear-gradient(to right,#4facfe,#00f2fe);
+                padding:20px;border-radius:10px">
+        <h1 style="color:white;text-align:center;">🎓 Intelligent Student Identity Trust System</h1>
+        <p style="color:white;text-align:center;">Real-time student behavior & room entry monitoring</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-# ================= LOAD DATA =================
-df = pd.read_excel("student_activity.xlsx")
+st.write("")
+
 # ================= SIDEBAR INPUT =================
-st.sidebar.header("📥 Student Activity Input")
+st.sidebar.header("🧑‍🎓 Student Activity Input")
 
-login_hour = st.sidebar.slider("Login Hour (0–23)", 0, 23, 9)
+student_name = st.sidebar.text_input("Student Name")
+
+login_hour = st.sidebar.slider("Login Hour (0-23)", 0, 23, 10)
 day_type = st.sidebar.selectbox("Day Type", ["Weekday", "Weekend"])
-session_duration = st.sidebar.slider("Session Duration (minutes)", 5, 300, 60)
-actions_per_minute = st.sidebar.slider("Actions per Minute", 1, 100, 15)
-time_between_actions = st.sidebar.slider("Time Between Actions (seconds)", 0.1, 20.0, 4.0)
-files_accessed = st.sidebar.slider("Files Accessed", 0, 50, 5)
+session_duration = st.sidebar.slider("Session Duration (minutes)", 1, 300, 30)
+actions_per_minute = st.sidebar.slider("Actions per Minute", 1, 100, 20)
+time_between_actions = st.sidebar.slider("Time Between Actions (seconds)", 0.1, 10.0, 3.0)
+files_accessed = st.sidebar.slider("Files Accessed", 0, 100, 10)
 device_change = st.sidebar.selectbox("Device Change Detected?", ["No", "Yes"])
 
-# Convert categorical values
-day_type = 0 if day_type == "Weekday" else 1
-device_change = 0 if device_change == "No" else 1
+# ================= PREPARE INPUT =================
+day_encoded = 0 if day_type == "Weekday" else 1
+device_encoded = 1 if device_change == "Yes" else 0
+
+input_data = [[
+    login_hour,
+    day_encoded,
+    session_duration,
+    actions_per_minute,
+    time_between_actions,
+    files_accessed,
+    device_encoded
+]]
+
+scaled_input = scaler.transform(input_data)
 
 # ================= PREDICTION =================
-if st.sidebar.button("🔍 Evaluate Trust"):
+if st.sidebar.button("🔍 Predict Trust Score"):
 
-    input_data = pd.DataFrame([{
-        "login_hour": login_hour,
-        "day_type": day_type,
-        "session_duration": session_duration,
-        "actions_per_minute": actions_per_minute,
-        "time_between_actions": time_between_actions,
-        "files_accessed": files_accessed,
-        "device_change": device_change
-    }])
-
-    # Scale input
-    scaled_input = scaler.transform(input_data)
-
-    # Model prediction
-    anomaly_label = model.predict(scaled_input)[0]
-    anomaly_score = model.decision_function(scaled_input)[0]
-
-    # Trust score calculation
-    trust_score = int(np.clip((anomaly_score + 0.5) * 100, 0, 100))
-
-    # Risk level
-    if trust_score >= 80:
-        risk_level = "🟢 High Trust"
-    elif trust_score >= 50:
-        risk_level = "🟡 Medium Trust"
+    if student_name.strip() == "":
+        st.error("⚠️ Please enter Student Name")
     else:
-        risk_level = "🔴 Low Trust"
+        prediction = model.predict(scaled_input)[0]
+        score = int(100 - abs(model.decision_function(scaled_input)[0] * 50))
 
-    # ================= OUTPUT =================
-    st.subheader("📊 Trust Assessment Result")
+        if prediction == -1:
+            status = "Anomalous"
+            risk = "High"
+        else:
+            status = "Normal"
+            risk = "Low"
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Trust Score", f"{trust_score}/100")
-    col2.metric("Behavior Status", "Normal" if anomaly_label == 1 else "Anomalous")
-    col3.metric("Risk Level", risk_level)
+        # ================= DISPLAY RESULT =================
+        col1, col2, col3 = st.columns(3)
 
-    # ================= EXPLANATION =================
-    st.subheader("🧠 Explanation")
+        col1.metric("Trust Score", f"{score}/100")
+        col2.metric("Behavior Status", status)
+        col3.metric("Risk Level", risk)
 
-    explanation = []
+        # ================= SAVE ENTRY TO CSV =================
+        log_file = "entry_log.csv"
 
-    if login_hour < 6 or login_hour > 22:
-        explanation.append("Login time is outside normal study hours.")
-    if actions_per_minute > 40:
-        explanation.append("Unusually high activity speed detected.")
-    if device_change == 1:
-        explanation.append("Student accessed the system from a new device.")
-    if session_duration > 180:
-        explanation.append("Very long session duration observed.")
+        log_data = {
+            "Student Name": student_name,
+            "Date": datetime.now().strftime("%Y-%m-%d"),
+            "Entry Time": datetime.now().strftime("%H:%M:%S"),
+            "Trust Score": score,
+            "Behavior Status": status,
+            "Risk Level": risk,
+            "Device Changed": device_change
+        }
 
-    if explanation:
-        for e in explanation:
-            st.write("•", e)
-    else:
-        st.write("Student behavior appears normal and consistent.")
+        if os.path.exists(log_file):
+            df = pd.read_csv(log_file)
+            df = pd.concat([df, pd.DataFrame([log_data])], ignore_index=True)
+        else:
+            df = pd.DataFrame([log_data])
 
-# ================= FOOTER =================
+        df.to_csv(log_file, index=False)
+
+        st.success("✅ Student entry logged successfully")
+
+# ================= REPORT SECTION =================
 st.markdown("---")
-st.caption("Developed using Machine Learning & Streamlit | Academic Project")
+st.subheader("📋 Room Entry Report")
+
+if os.path.exists("entry_log.csv"):
+    report_df = pd.read_csv("entry_log.csv")
+
+    st.dataframe(report_df, use_container_width=True)
+
+    # SUMMARY
+    st.markdown("### 📊 Summary")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Entries", len(report_df))
+    c2.metric("Normal", len(report_df[report_df["Behavior Status"] == "Normal"]))
+    c3.metric("Anomalous", len(report_df[report_df["Behavior Status"] == "Anomalous"]))
+
+    # DOWNLOAD
+    st.download_button(
+        label="⬇️ Download Report (CSV)",
+        data=report_df.to_csv(index=False),
+        file_name="student_entry_report.csv",
+        mime="text/csv"
+    )
+else:
+    st.info("No entries recorded yet.")
